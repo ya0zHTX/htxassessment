@@ -21,6 +21,9 @@ spark-rdd-clean-template/
 │       │                   │   └── LocationRecord.scala
 │       │                   └── util/
 │       │                       └── SparkSessionWrapper.scala
+├── data/
+│   ├── detections.parquet
+│   └── locations.parquet
 ├── README.md
 └── .gitignore
 ```
