@@ -1,0 +1,23 @@
+# sbt build files
+target/
+project/target/
+project/project/
+
+# VS Code and Metals
+.vscode/
+.metals/
+.bloop/
+.bsp/
+
+# IntelliJ (if used)
+# .idea/
+# *.iml
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+#parquet files
+*.parquet
