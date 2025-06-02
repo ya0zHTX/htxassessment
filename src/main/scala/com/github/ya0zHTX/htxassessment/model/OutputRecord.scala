@@ -13,16 +13,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package com.github.ya0zHTX.htxassessment.util
-import org.apache.spark.sql.SparkSession
+package com.github.ya0zHTX.htxassessment.model
 
-// A SparkSession Wrapper for the Main to use.
-
-object SparkSessionWrapper {
-  def get(appName: String): SparkSession = {
-    SparkSession.builder()
-      .appName(appName)
-      .master("local[*]")
-      .getOrCreate()
-  }
-}
+case class OutputRecord(
+  geographical_location: String,
+  item_rank: String,
+  item_name: String
+)

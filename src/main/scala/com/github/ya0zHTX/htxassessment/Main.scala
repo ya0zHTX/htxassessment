@@ -15,85 +15,61 @@
 // limitations under the License.
 package com.github.ya0zHTX.htxassessment
 
-import com.github.ya0zHTX.htxassessment.model._
 import com.github.ya0zHTX.htxassessment.util.SparkSessionWrapper
-import org.apache.spark.sql.{Row, SaveMode}
-import org.apache.spark.sql.types._
+import com.github.ya0zHTX.htxassessment.service.{ParquetLoader, BroadcastGeolocation, RankingItem, OutputWriter}
 
 object Main {
   def main(args: Array[String]): Unit = {
-    if (args.length != 4) {
+    if (args.length != 4) { // Ensure that exactly four command-line arguments are provided.
       println("Usage: Main <detectionsFilePath> <geolocationsFilePath> <outputFilePath> <topX>")
-      sys.exit(1)
     }
 
+    // Unpack the command-line arguments into respective variables.
     val Array(detectionsPath, geolocationsPath, outputPath, topXStr) = args
+    // Convert the topX string argument to an integer.
     val topX = topXStr.toInt
-    val spark = SparkSessionWrapper.get("RDD Project")
-    val sc = spark.sparkContext
 
-    val dfDetections = spark.read.parquet(detectionsPath)
-    val dfGeoLocations = spark.read.parquet(geolocationsPath)
+    // Initialize SparkSession
+    val spark = SparkSessionWrapper.get("HTX Assessment")
+    val sc = spark.sparkContext // Get SparkContext for broadcasting
 
-    val detectionRDD = dfDetections.rdd
-      .map(row => DetectionRecord(
-        row.getAs[Long]("geographical_location_oid"),
-        row.getAs[Long]("video_camera_oid"),
-        row.getAs[Long]("detection_oid"),
-        row.getAs[String]("item_name"),
-        row.getAs[Long]("timestamp_detected")
-      ))
-      // Dedup key: (detection_oid, video_camera_oid, geographical_location_oid)
-      .map(d => ((d.detection_oid, d.video_camera_oid, d.geographical_location_oid), d))
-      .reduceByKey((a, _) => a) // keep one DetectionRecord per the unique keys above
-      .map { case (_, d) => (d.geographical_location_oid, d) }
-      // .map(d => (d.geographical_location_oid, d))
-      // .distinct() // remove duplicate based on all of the fields
+    try {
+      // Initialize the services
+      val dataLoader = new ParquetLoader(spark)
+      val broadcastGeolocation = new BroadcastGeolocation(sc)
+      val rankingItem = new RankingItem()
+      val outputWriter = new OutputWriter(spark)
 
-    val geolocationRDD = dfGeoLocations.rdd
-      .map(row => GeoLocationRecord(
-        row.getAs[Long]("geographical_location_oid"),
-        row.getAs[String]("geographical_location")
-      ))
-      .map(l => (l.geographical_location_oid, l.geographical_location))
+      // Load Data
+      println("--- Loading detection and geolocation data ---")
+      val detectionRDD = dataLoader.loadDetections(detectionsPath)
+      val geoLocationRDD = dataLoader.loadGeoLocations(geolocationsPath)
 
-    val cogrouped = detectionRDD.cogroup(geolocationRDD)
+      // Broadcast GeoLocations
+      println("--- Broadcasting geolocation data map ---")
+      val broadcastedGeolocationMap = broadcastGeolocation.broadcastGeoLocations(geoLocationRDD)
 
-    val cogroupedRDD = cogrouped.flatMap {
-      case (_, (dets, locs)) =>
-        for {
-          det <- dets
-          loc <- locs
-        } yield ((det.item_name, loc), 1)
+      // Calculate Top Ranked Items
+      println(s"--- Calculating top $topX ranked items per geographical location ---")
+      val finalOutputRDD = rankingItem.calculateTopRankedItems(
+        detectionRDD,
+        broadcastedGeolocationMap,
+        topX
+      )
+
+      // Write Output
+      println("--- Writing final output data ---")
+      outputWriter.writeOutput(finalOutputRDD, outputPath)
+      // Show the contents of the output DataFrame for verification
+      println("Output Data:")
+      spark.read.parquet(outputPath).show(false)
+    } catch {
+      case e: Exception =>
+        println(s"An error occurred: ${e.getMessage}")
+        e.printStackTrace()
+    } finally {
+      spark.stop() // Stop the SparkSession
+      println("SparkSession stopped. Program finished.")
     }
-
-    val topItems = cogroupedRDD
-      .reduceByKey(_ + _)
-      .map { case ((item, _), count) => (item, count) }
-      .reduceByKey(_ + _)
-      .takeOrdered(topX)(Ordering[Int].reverse.on(_._2)) // only get the top X
-      .map(_._1)
-      .toSet
-
-    val finalRDD = cogroupedRDD
-      .reduceByKey(_ + _)
-      .filter { case ((item, _), _) => topItems.contains(item) }
-      .map { case ((item, location), count) => Row(item, location, count) }
-
-    val outputSchema = StructType(Seq(
-      StructField("item_name", StringType),
-      StructField("geographical_location", StringType),
-      StructField("detection_count", IntegerType)
-    ))
-
-    val resultDF = spark.createDataFrame(finalRDD, outputSchema)
-    resultDF.write.mode(SaveMode.Overwrite).parquet(outputPath)
-
-
-    val outputDF = spark.read.parquet(outputPath)
-
-    // Show the contents in console
-    outputDF.show(false)  // false to avoid truncation
-    spark.stop()
   }
 }
