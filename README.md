@@ -66,6 +66,13 @@ Run the command in the `sbt` terminal e.g.
 runMain com.github.ya0zHTX.htxassessment.Main ./data/detections.parquet ./data/geolocations.parquet ./data/output.parquet 10
 ```
 
+### To ScalaStyle check
+Run the command in `sbt` terminal to run the plugin `scalastyle`
+
+```
+scalastyle
+```
+
 ## Git repository structure **NOT required**
 Used `sbt` to create a Scala Park code repository.
 
