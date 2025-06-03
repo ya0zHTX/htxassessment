@@ -6,6 +6,7 @@
 3. The scalastyle checks does not throw errors and warnings are based on the default style configured in `scalastyle-config.xml`
 4. Scalastyle gives warning for `println` due to not using a logger.
 5. Logger is not used in this code and errors will be thrown out to the console.
+6. Deduplication of the detections dataset is based on the keys `(detection_oid, video_camera_oid, geographical_location_oid)`
 
 ## Setup environment to run Scala
 ### Install JDK
@@ -55,12 +56,42 @@ sbt:HTXAssessment>
 Run the command in the `sbt` terminal:
 
 **Unit test data:**
+The unit testing is done for deduplication of the detections dataset based on the keys `(detection_oid, video_camera_oid, geographical_location_oid)`
+
+```
+val detections = Seq(
+      Row(1001L, 5001L, 9001L, "Item_1", 1717000000000L),
+      Row(1001L, 5001L, 9002L, "Item_2", 1717000000010L),
+      Row(1001L, 5002L, 9001L, "Item_1", 1717000000020L),
+      Row(1001L, 5002L, 9001L, "Item_1", 1717000000020L),
+      Row(1002L, 5003L, 9003L, "Item_3", 1717000000030L),
+      Row(1002L, 5004L, 9004L, "Item_3", 1717000000040L), 
+      Row(1002L, 5004L, 9005L, "Item_4", 1717000000050L),
+      Row(1002L, 5004L, 9004L, "Item_3", 1717000000060L), // Duplicate to test
+      Row(1002L, 5004L, 9004L, "Item_3", 1717000000070L), // Duplicate to test
+      Row(1002L, 5004L, 9006L, "Item_4", 1717000000070L),
+      Row(1002L, 5004L, 9007L, "Item_4", 1717000000080L)
+    )
+```
+Expected result:
+```
++---------------------+---------+---------+
+|geographical_location|item_rank|item_name|
++---------------------+---------+---------+
+|Location_1           |1        |Item_1   |
+|Location_1           |2        |Item_2   |
+|Location_2           |1        |Item_4   |
+|Location_2           |2        |Item_3   |
++---------------------+---------+---------+
+```
+
+**Generate unit test data:**
 
 ```
 runMain GenerateUnitTestData
 ```
 
-**Test data:**
+**To generate larger test datasets:**
 ```
 runMain GenerateTestData
 ```
