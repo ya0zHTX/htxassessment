@@ -1,4 +1,12 @@
 # HTX Assessment
+## Assumptions
+
+1. Assumed that you are using a MacOS machine when setting up the environment
+2. The ranking is ranked based on the `geographical_location` and not just displaying the top X items across all `geographical_location`
+3. The scalastyle checks does not throw errors and warnings are based on the default style configured in `scalastyle-config.xml`
+4. Scalastyle gives warning for `println` due to not using a logger.
+5. Logger is not used in this code and errors will be thrown out to the console.
+
 ## Setup environment to run Scala
 ### Install JDK
 ```
